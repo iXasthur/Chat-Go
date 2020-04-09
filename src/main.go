@@ -11,12 +11,17 @@ import (
 
 // 1 byte always 213
 // 2 byte always 137
-// 3 byte always (14 - rdy to chat)
+// 3 byte always (	14 - rdy to chat UDP,
+//					114 - send client TCP, 115 - message TCP)
 type packageFirstBytesTemplateType struct {
 	rdyToChatUDP []byte
+	clientDataTCP []byte
+	messageTCP []byte
 }
 var packageFirstBytesTemplates = packageFirstBytesTemplateType{
 	rdyToChatUDP: []byte{213, 137, 14},
+	clientDataTCP: []byte{213, 137, 114},
+	messageTCP: []byte{213, 137, 115},
 }
 
 type Message struct {
@@ -65,21 +70,6 @@ func sendUDPBroadcast(connection net.PacketConn, b []byte){
 	}
 }
 
-// 1-3 bytes are type of package
-// 4-7 bytes of ip
-// 8 byte length of name in bytes
-// 9-* name
-func parseUDPPackage(b []byte) (string, net.IP){
-	if len(b) > 0 {
-		if bytes.Compare(b[:3], packageFirstBytesTemplates.rdyToChatUDP) == 0 {
-			buffIP := net.IP{b[3],b[4],b[5],b[6]}
-			buffName := string(b[8:8+b[7]])
-			return buffName, buffIP
-		}
-	}
-	return "", nil
-}
-
 func addMessageToHistory(name string, ip net.IP, text string){
 	msg := Message{
 		name: name,
@@ -118,7 +108,7 @@ func receivedBroadcastMessageUDP(b []byte){
 		if ip != nil && name != "" {
 			if findPeerByIP(ip).ip == nil {
 				addPeer(name, ip)
-				addMessageToHistory(name, ip, "joined chat!")
+				addMessageToHistory(name, ip, "joined chat!\n")
 				resetChatWindow()
 			}
 		}
@@ -142,26 +132,70 @@ func listenBroadcastUDP(connection net.PacketConn){
 // 8 byte length of name in bytes
 // 9-* name
 // name must be <=255 bytes
+func parseUDPPackage(b []byte) (string, net.IP){
+	if len(b) > 3 {
+		if bytes.Compare(b[:3], packageFirstBytesTemplates.rdyToChatUDP) == 0 {
+			buffIP := net.IP{b[3],b[4],b[5],b[6]}
+			buffName := string(b[8:8+b[7]])
+			return buffName, buffIP
+		}
+	}
+	return "", nil
+}
+
 func createUDPPackage(firstBytesTemplate []byte, name string, ip net.IP) []byte{
 	var buff = firstBytesTemplate
-	var ipBytes = []byte(ip)
-	var nameLength = byte(len(name))
-	var nameBytes = []byte(name)
 
-	buff = append(buff, ipBytes...)
-	buff = append(buff, nameLength)
-	buff = append(buff, nameBytes...)
+	if bytes.Compare(firstBytesTemplate, packageFirstBytesTemplates.rdyToChatUDP) == 0 {
+		var ipBytes = []byte(ip)
+		var nameLength = byte(len(name))
+		var nameBytes = []byte(name)
+
+		buff = append(buff, ipBytes...)
+		buff = append(buff, nameLength)
+		buff = append(buff, nameBytes...)
+	}
 
 	return buff
+}
+
+// 1-3 bytes are type of package
+// 4 byte length of text in bytes
+// 5-* text
+func parseTCPPackage(b []byte) string {
+	if len(b) > 3 {
+		if bytes.Compare(b[:3], packageFirstBytesTemplates.messageTCP) == 0 {
+			buffText := string(b[4:4+b[3]])
+			return buffText
+		}
+	}
+	return ""
+}
+func createTCPPackage(firstBytesTemplate []byte, text string) []byte {
+	var buff = firstBytesTemplate
+
+	if bytes.Compare(firstBytesTemplate, packageFirstBytesTemplates.messageTCP) == 0 {
+		var textLength = byte(len(text))
+		var textBytes = []byte(text)
+		buff = append(buff, textLength)
+		buff = append(buff, textBytes...)
+	}
+
+	return buff
+}
+
+func receivedMessageTCP(b []byte, ip string){
+	str := parseTCPPackage(b)
+	if str != "" {
+		peer := findPeerByIP(net.IP(ip))
+		addMessageToHistory(peer.name, peer.ip, str)
+		resetChatWindow()
+	}
 }
 
 func shoutOutUDP(connection net.PacketConn, client *Client){
 	msg := createUDPPackage(packageFirstBytesTemplates.rdyToChatUDP, client.name, client.ip)
 	sendUDPBroadcast(connection, msg)
-}
-
-func sendMessageTCP(connection net.PacketConn, b []byte){
-
 }
 
 func handleRequest(conn net.Conn) {
@@ -173,7 +207,8 @@ func handleRequest(conn net.Conn) {
 		fmt.Println("Error reading:", err.Error())
 	}
 
-	fmt.Println("Received message: " + string(buf[:length]))
+	receivedMessageTCP(buf[:length], conn.RemoteAddr().String())
+	//fmt.Println("Received message: " + string(buf[:length]))
 
 	//// Send a response back to person contacting us.
 	//conn.Write([]byte("Message received."))
@@ -184,14 +219,14 @@ func handleRequest(conn net.Conn) {
 
 func startTCPServer(){
 	// Listen for incoming connections.
-	l, err := net.Listen("tcp4", "localhost"+":"+strconv.Itoa(client.portTCP))
+	l, err := net.Listen("tcp4", client.ip.String()+":"+strconv.Itoa(client.portTCP))
 	if err != nil {
 		fmt.Println("Error listening:", err.Error())
 		os.Exit(1)
 	}
 	// Close the listener when the application closes.
 	defer l.Close()
-	fmt.Println("Listening on " + "localhost" + ":" + strconv.Itoa(client.portTCP))
+	//fmt.Println("Listening on " + client.ip.String() + ":" + strconv.Itoa(client.portTCP))
 	for {
 		// Listen for an incoming connection.
 		conn, err := l.Accept()
@@ -201,6 +236,22 @@ func startTCPServer(){
 		}
 		// Handle connections in a new goroutine.
 		go handleRequest(conn)
+	}
+}
+
+func sendMessageTCP(b []byte, ip net.IP){
+	l, err := net.Dial("tcp4", ip.String()+":"+strconv.Itoa(client.portTCP))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	l.Write([]byte(b))
+	l.Close()
+}
+
+func sendMessageToPeersTCP(b []byte){
+	for _, peer := range client.peers {
+		sendMessageTCP(b, peer.ip)
 	}
 }
 
@@ -241,7 +292,7 @@ func main() {
 	reader := bufio.NewReader(os.Stdin)
 	for {
 
-		text, _ := reader.ReadString('\n')
+		text, _ := reader.ReadString('\n') // Text must be <=255 in bytes
 
 		switch text {
 		case "/upd\n":{
@@ -255,23 +306,9 @@ func main() {
 		default:{
 			// Send msg to peers
 			fmt.Println("Sending message")
-
-			l, err := net.Dial("tcp4", "192.168.1.35"+":"+strconv.Itoa(client.portTCP))
-			if err != nil {
-				fmt.Println(err)
-			} else {
-				l.Write([]byte(text))
-				l.Close()
-			}
-
-			//l, err := net.Dial("tcp4", "localhost"+":"+strconv.Itoa(client.portTCP))
-			//if err != nil {
-			//	fmt.Println(err)
-			//	return
-			//}
-			//l.Write([]byte(text))
-			//l.Close()
-
+			addMessageToHistory(client.name, client.ip, text)
+			buff := createTCPPackage(packageFirstBytesTemplates.messageTCP, text)
+			sendMessageToPeersTCP(buff)
 			resetChatWindow()
 			//sendMessageTCP(connectionTCP, []byte(text))
 		}

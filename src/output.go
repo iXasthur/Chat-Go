@@ -25,7 +25,6 @@ func printHistory(){
 		//fmt.Print(client.history[i].name + "(" + client.history[i].ip + ")")
 		fmt.Print("[" + client.history[i].name + "]")
 		fmt.Print(": " + client.history[i].text)
-		fmt.Println()
 	}
 	fmt.Println()
 }
