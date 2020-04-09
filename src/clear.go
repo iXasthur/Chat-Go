@@ -15,6 +15,11 @@ func initClearFunctions() {
 		cmd.Stdout = os.Stdout
 		_ = cmd.Run()
 	}
+	clear["darwin"] = func() {
+		cmd := exec.Command("clear") //Linux example, its tested
+		cmd.Stdout = os.Stdout
+		_ = cmd.Run()
+	}
 	clear["windows"] = func() {
 		cmd := exec.Command("cmd", "/c", "cls") //Windows example, its tested
 		cmd.Stdout = os.Stdout
