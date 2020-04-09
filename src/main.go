@@ -20,6 +20,8 @@ var packageFirstBytesTemplates = packageFirstBytesTemplateType{
 }
 
 type Message struct {
+	name string
+	ip string
 	time string
 	text string
 }
@@ -78,10 +80,49 @@ func parseUDPPackage(b []byte) (string, net.IP){
 	return "", nil
 }
 
+func addMessageToHistory(name string, ip net.IP, text string){
+	msg := Message{
+		name: name,
+		ip: ip.String(),
+		time: "0:0:0",
+		text: text,
+	}
+	client.history = append(client.history, msg)
+}
+
+func addPeer(name string, ip net.IP){
+	peer := Peer{
+		name: name,
+		ip:   ip,
+	}
+	client.peers = append(client.peers, peer)
+}
+
+func findPeerByIP(ip net.IP) Peer {
+	buff := Peer{
+		name: "",
+		ip:   nil,
+	}
+	for _, peer := range client.peers {
+		if ip.String() == peer.ip.String() {
+			buff = peer
+		}
+	}
+	return buff
+}
+
 func receivedBroadcastMessageUDP(b []byte){
 	//fmt.Printf("Received this: %s\n", bytes)
 	name, ip := parseUDPPackage(b)
-	fmt.Println(name + "(" + ip.String() + ")" + " connected")
+	if ip.String() != client.ip.String() {
+		if ip != nil && name != "" {
+			if findPeerByIP(ip).ip == nil {
+				addPeer(name, ip)
+				addMessageToHistory(name, ip, "joined chat!")
+				resetChatWindow()
+			}
+		}
+	}
 }
 
 func listenBroadcastUDP(connection net.PacketConn){
@@ -150,20 +191,22 @@ func main() {
 	defer connectionUDP.Close()
 
 	shoutOutUDP(connectionUDP, &client)
-	printHeader(client, 1)
+	//printHeader(1)
+	//printHistory()
+	resetChatWindow()
 
 	go listenBroadcastUDP(connectionUDP)
 
 
 	reader := bufio.NewReader(os.Stdin)
 	for {
-		fmt.Print("> ")
+
 		text, _ := reader.ReadString('\n')
 
 		switch text {
 		case "/upd\n":{
 			fmt.Println("Updating chat")
-			break
+			resetChatWindow()
 		}
 		case "/exit\n":{
 			fmt.Println("Exiting chat")
