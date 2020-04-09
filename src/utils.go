@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"fmt"
 	"net"
 )
 
@@ -9,7 +9,7 @@ import (
 func getLocalIP() net.IP {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
 		return nil
 	}
 	defer conn.Close()
