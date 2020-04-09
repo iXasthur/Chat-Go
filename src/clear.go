@@ -16,7 +16,7 @@ func initClearFunctions() {
 		_ = cmd.Run()
 	}
 	clear["darwin"] = func() {
-		cmd := exec.Command("clear") //Linux example, its tested
+		cmd := exec.Command("clear") //MacOS example, its tested
 		cmd.Stdout = os.Stdout
 		_ = cmd.Run()
 	}
