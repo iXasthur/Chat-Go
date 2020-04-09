@@ -164,6 +164,46 @@ func sendMessageTCP(connection net.PacketConn, b []byte){
 
 }
 
+func handleRequest(conn net.Conn) {
+	// Make a buffer to hold incoming data.
+	buf := make([]byte, 1024)
+	// Read the incoming connection into the buffer.
+	length, err := conn.Read(buf)
+	if err != nil {
+		fmt.Println("Error reading:", err.Error())
+	}
+
+	fmt.Println("Received message: " + string(buf[:length]))
+
+	//// Send a response back to person contacting us.
+	//conn.Write([]byte("Message received."))
+
+	// Close the connection when you're done with it.
+	conn.Close()
+}
+
+func startTCPServer(){
+	// Listen for incoming connections.
+	l, err := net.Listen("tcp4", "localhost"+":"+strconv.Itoa(client.portTCP))
+	if err != nil {
+		fmt.Println("Error listening:", err.Error())
+		os.Exit(1)
+	}
+	// Close the listener when the application closes.
+	defer l.Close()
+	fmt.Println("Listening on " + "localhost" + ":" + strconv.Itoa(client.portTCP))
+	for {
+		// Listen for an incoming connection.
+		conn, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting: ", err.Error())
+			os.Exit(1)
+		}
+		// Handle connections in a new goroutine.
+		go handleRequest(conn)
+	}
+}
+
 func main() {
 	initClearFunctions()
 
@@ -182,7 +222,7 @@ func main() {
 	//	panic(err)
 	//}
 	//defer connectionTCP.Close()
-
+	go startTCPServer()
 
 	connectionUDP,err := net.ListenPacket("udp4", ":"+strconv.Itoa(client.portUDP))
 	if err != nil {
@@ -215,6 +255,24 @@ func main() {
 		default:{
 			// Send msg to peers
 			fmt.Println("Sending message")
+
+			l, err := net.Dial("tcp4", "192.168.1.35"+":"+strconv.Itoa(client.portTCP))
+			if err != nil {
+				fmt.Println(err)
+			} else {
+				l.Write([]byte(text))
+				l.Close()
+			}
+
+			//l, err := net.Dial("tcp4", "localhost"+":"+strconv.Itoa(client.portTCP))
+			//if err != nil {
+			//	fmt.Println(err)
+			//	return
+			//}
+			//l.Write([]byte(text))
+			//l.Close()
+
+			resetChatWindow()
 			//sendMessageTCP(connectionTCP, []byte(text))
 		}
 		}
