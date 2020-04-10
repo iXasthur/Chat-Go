@@ -6,6 +6,7 @@ func printHeader(newLineOffset int){
 	for i := 0; i < newLineOffset; i++ {
 		fmt.Println()
 	}
+
 	fmt.Println("Client info:")
 	fmt.Println("IP address: " + client.ip.String())
 	fmt.Println("Nickname: " + client.name)
@@ -14,17 +15,18 @@ func printHeader(newLineOffset int){
 	for _, peer := range client.peers {
 		fmt.Println(peer.name + "(" + peer.ip.String() + ")")
 	}
+
 	for i := 0; i < newLineOffset; i++ {
 		fmt.Println()
 	}
 }
 
 func printHistory(){
-	for i := 0 ; i<len(client.history); i++  {
-		fmt.Print(client.history[i].time + " ")
-		//fmt.Print(client.history[i].name + "(" + client.history[i].ip + ")")
-		fmt.Print("[" + client.history[i].name + "]")
-		fmt.Print(": " + client.history[i].text)
+	for _, msg := range client.history {
+		fmt.Print(msg.time + " ")
+		fmt.Print(msg.name + "(" + msg.ip.String() + ")")
+		//fmt.Print("[" + msg.name + "]")
+		fmt.Print(": " + msg.text)
 	}
 	fmt.Println()
 }
