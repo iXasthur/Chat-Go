@@ -12,16 +12,18 @@ import (
 // 1 byte always 213
 // 2 byte always 137
 // 3 byte always (	14 - rdy to chat UDP,
-//					114 - send client TCP, 115 - message TCP)
+//					114 - send client TCP, 115 - message TCP, 116 - disconnect TCP)
 type packageFirstBytesTemplateType struct {
 	rdyToChatUDP []byte
 	clientDataTCP []byte
 	messageTCP []byte
+	disconnectTCP []byte
 }
 var packageFirstBytesTemplates = packageFirstBytesTemplateType{
 	rdyToChatUDP: []byte{213, 137, 14},
 	clientDataTCP: []byte{213, 137, 114},
 	messageTCP: []byte{213, 137, 115},
+	disconnectTCP: []byte{213, 137, 116},
 }
 
 type Message struct {
@@ -89,6 +91,20 @@ func addPeer(name string, ip net.IP){
 	client.peers = append(client.peers, peer)
 }
 
+func removePeer(peer Peer){
+	var i int
+	for i = 0; i<len(client.peers); i++ {
+		if client.peers[i].ip.String() == peer.ip.String() {
+			if i == len(client.peers) - 1 {
+				client.peers = client.peers[:i]
+			} else {
+				client.peers = append(client.peers[:i], client.peers[i:]...)
+			}
+			break
+		}
+	}
+}
+
 func findPeerByIP(ip net.IP) Peer {
 	buff := Peer{
 		name: "",
@@ -111,6 +127,16 @@ func receivedBroadcastMessageUDP(b []byte) {
 				addPeer(msg.name, msg.ip)
 				addMessageToHistory(msg)
 				resetChatWindow()
+
+				replyMsg := Message{
+					kind: packageFirstBytesTemplates.clientDataTCP,
+					name: client.name,
+					ip:   client.ip,
+					time: getTimeString(),
+					text: "Add me!\n",
+				}
+				p := createPackage(replyMsg)
+				sendMessageTCP(p, msg.ip)
 			}
 		}
 	}
@@ -192,6 +218,15 @@ func receivedMessageTCP(b []byte){
 	if bytes.Compare(msg.kind, packageFirstBytesTemplates.messageTCP) == 0 {
 		addMessageToHistory(msg)
 		resetChatWindow()
+	} else
+	if bytes.Compare(msg.kind, packageFirstBytesTemplates.clientDataTCP) == 0 {
+		addPeer(msg.name, msg.ip)
+		resetChatWindow()
+	} else
+	if bytes.Compare(msg.kind, packageFirstBytesTemplates.disconnectTCP) == 0 {
+		removePeer(findPeerByIP(msg.ip))
+		addMessageToHistory(msg)
+		resetChatWindow()
 	}
 }
 
@@ -255,6 +290,18 @@ func sendMessageToPeersTCP(b []byte){
 	}
 }
 
+func disconnectTCP(){
+	msg := Message{
+		kind: packageFirstBytesTemplates.disconnectTCP,
+		name: client.name,
+		ip:   client.ip,
+		time: getTimeString(),
+		text: "left chat!\n",
+	}
+	buff := createPackage(msg)
+	sendMessageToPeersTCP(buff)
+}
+
 func main() {
 	initClearFunctions()
 
@@ -268,15 +315,15 @@ func main() {
 	client.portTCP = 8893
 
 	// Listen for incoming connections.
-	l, err := net.Listen("tcp4", client.ip.String()+":"+strconv.Itoa(client.portTCP))
+	listenerTCP, err := net.Listen("tcp4", client.ip.String()+":"+strconv.Itoa(client.portTCP))
 	if err != nil {
 		fmt.Println("Error listening:", err.Error())
 		os.Exit(1)
 	}
 	// Close the listener when the application closes.
-	defer l.Close()
+	defer listenerTCP.Close()
 
-	go startTCPServer(l)
+	go startTCPServer(listenerTCP)
 
 	connectionUDP,err := net.ListenPacket("udp4", ":"+strconv.Itoa(client.portUDP))
 	if err != nil {
@@ -296,15 +343,22 @@ func main() {
 
 		text, _ := reader.ReadString('\n') // Text must be <=255 in bytes
 
+		if text == "/exit\n" {
+			fmt.Println("Exiting chat")
+			disconnectTCP()
+			resetChatWindow()
+			break
+		}
+
 		switch text {
 		case "/upd\n":{
 			fmt.Println("Updating chat")
 			resetChatWindow()
 		}
-		case "/exit\n":{
-			fmt.Println("Exiting chat")
-			break
-		}
+		//case "/exit\n":{
+		//	fmt.Println("Exiting chat")
+		//	resetChatWindow()
+		//}
 		default:{
 			// Send msg to peers
 			fmt.Println("Sending message")
