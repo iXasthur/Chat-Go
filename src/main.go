@@ -226,16 +226,7 @@ func handleRequest(conn net.Conn) {
 	conn.Close()
 }
 
-func startTCPServer(){
-	// Listen for incoming connections.
-	l, err := net.Listen("tcp4", client.ip.String()+":"+strconv.Itoa(client.portTCP))
-	if err != nil {
-		fmt.Println("Error listening:", err.Error())
-		os.Exit(1)
-	}
-	// Close the listener when the application closes.
-	defer l.Close()
-	//fmt.Println("Listening on " + client.ip.String() + ":" + strconv.Itoa(client.portTCP))
+func startTCPServer(l net.Listener){
 	for {
 		// Listen for an incoming connection.
 		conn, err := l.Accept()
@@ -276,13 +267,16 @@ func main() {
 	client.portUDP = 8892
 	client.portTCP = 8893
 
+	// Listen for incoming connections.
+	l, err := net.Listen("tcp4", client.ip.String()+":"+strconv.Itoa(client.portTCP))
+	if err != nil {
+		fmt.Println("Error listening:", err.Error())
+		os.Exit(1)
+	}
+	// Close the listener when the application closes.
+	defer l.Close()
 
-	//connectionTCP,err := net.ListenPacket("tcp", client.ip.String()+":"+strconv.Itoa(client.portTCP))
-	//if err != nil {
-	//	panic(err)
-	//}
-	//defer connectionTCP.Close()
-	go startTCPServer()
+	go startTCPServer(l)
 
 	connectionUDP,err := net.ListenPacket("udp4", ":"+strconv.Itoa(client.portUDP))
 	if err != nil {
