@@ -8,6 +8,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 // 1 byte always 213
@@ -372,12 +373,14 @@ func main() {
 
 	fmt.Print("Enter your nickname: ")
 	text, _ := reader.ReadString('\n') // Name must be <=255 in bytes
+	text = strings.Replace(text, "\r", "", -1)
 	client.name = text[:len(text)-1]
 
 	for client.portUDP == -1 {
 		fmt.Print("Enter UDP port(press Enter to use " + strconv.Itoa(UDP_DEFAULT_PORT) + "): ")
 
 		text, _ = reader.ReadString('\n')
+		text = strings.Replace(text, "\r", "", -1)
 		if text == "\n" {
 			client.portUDP = UDP_DEFAULT_PORT
 		} else {
@@ -394,6 +397,7 @@ func main() {
 		fmt.Print("Enter TCP port(press Enter to use " + strconv.Itoa(TCP_DEFAULT_PORT) + "): ")
 
 		text, _ = reader.ReadString('\n')
+		text = strings.Replace(text, "\r", "", -1)
 		if text == "\n" {
 			client.portTCP = TCP_DEFAULT_PORT
 		} else {
@@ -405,10 +409,7 @@ func main() {
 			}
 		}
 	}
-
-
-	fmt.Print("Enter TCP port: ")
-	client.portTCP = 8893
+	
 
 	// Listen for incoming connections.
 	listenerTCP, err := net.Listen("tcp4", client.ip.String()+":"+strconv.Itoa(client.portTCP))
@@ -438,6 +439,7 @@ func main() {
 	for {
 
 		text, _ = reader.ReadString('\n') // Text must be <=255 in bytes
+		text = strings.Replace(text, "\r", "", -1)
 
 		switch text {
 		case "/upd\n":
