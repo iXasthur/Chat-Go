@@ -12,7 +12,7 @@ import (
 // 1 byte always 213
 // 2 byte always 137
 // 3 byte always (	14 - rdy to chat UDP,
-//					114 - send client TCP, 115 - message TCP, 116 - disconnect TCP)
+//					114 - send client TCP, 115 - message TCP, 116 - disconnect TCP	)
 type packageFirstBytesTemplateType struct {
 	rdyToChatUDP []byte
 	clientDataTCP []byte
@@ -148,7 +148,7 @@ func listenBroadcastUDP(connection net.PacketConn){
 		n, _, err := connection.ReadFrom(buf)
 		if err != nil {
 			fmt.Println(err)
-			return
+			break
 		}
 		receivedBroadcastMessageUDP(buf[:n])
 	}
@@ -213,7 +213,7 @@ func createPackage(msg Message) []byte{
 	return buff
 }
 
-func receivedMessageTCP(b []byte){
+func receiveMessageTCP(b []byte){
 	msg := parsePackage(b)
 	if bytes.Compare(msg.kind, packageFirstBytesTemplates.messageTCP) == 0 {
 		addMessageToHistory(msg)
@@ -251,8 +251,7 @@ func handleRequest(conn net.Conn) {
 		fmt.Println("Error reading:", err.Error())
 	}
 
-	receivedMessageTCP(buf[:length])
-	//fmt.Println("Received message: " + string(buf[:length]))
+	receiveMessageTCP(buf[:length])
 
 	//// Send a response back to person contacting us.
 	//conn.Write([]byte("Message received."))
@@ -267,7 +266,7 @@ func startTCPServer(l net.Listener){
 		conn, err := l.Accept()
 		if err != nil {
 			fmt.Println("Error accepting: ", err.Error())
-			os.Exit(1)
+			break
 		}
 		// Handle connections in a new goroutine.
 		go handleRequest(conn)
@@ -343,38 +342,36 @@ func main() {
 
 		text, _ := reader.ReadString('\n') // Text must be <=255 in bytes
 
-		if text == "/exit\n" {
-			fmt.Println("Exiting chat")
-			disconnectTCP()
-			resetChatWindow()
-			break
-		}
-
 		switch text {
-		case "/upd\n":{
-			fmt.Println("Updating chat")
-			resetChatWindow()
-		}
-		//case "/exit\n":{
-		//	fmt.Println("Exiting chat")
-		//	resetChatWindow()
-		//}
-		default:{
-			// Send msg to peers
-			fmt.Println("Sending message")
-			msg := Message{
-				kind: packageFirstBytesTemplates.messageTCP,
-				name: client.name,
-				ip:   client.ip,
-				time: getTimeString(),
-				text: text,
+		case "/upd\n":
+			{
+				fmt.Println("Updating chat")
+				resetChatWindow()
 			}
-			addMessageToHistory(msg)
-			buff := createPackage(msg)
-			sendMessageToPeersTCP(buff)
-			resetChatWindow()
-			//sendMessageTCP(connectionTCP, []byte(text))
-		}
+		case "/exit\n":
+			{
+				fmt.Println("Exiting chat")
+				disconnectTCP()
+				resetChatWindow()
+				return
+			}
+		default:
+			{
+				// Send msg to peers
+				fmt.Println("Sending message")
+				msg := Message{
+					kind: packageFirstBytesTemplates.messageTCP,
+					name: client.name,
+					ip:   client.ip,
+					time: getTimeString(),
+					text: text,
+				}
+				addMessageToHistory(msg)
+				buff := createPackage(msg)
+				sendMessageToPeersTCP(buff)
+				resetChatWindow()
+				//sendMessageTCP(connectionTCP, []byte(text))
+			}
 		}
 	}
 }
