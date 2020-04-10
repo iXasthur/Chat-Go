@@ -34,6 +34,11 @@ var packageFirstBytesTemplates = packageFirstBytesTemplateType{
 	historyMessageTCP: 	[]byte{213, 137, 118},
 }
 
+const(
+	UDP_DEFAULT_PORT = 8892
+	TCP_DEFAULT_PORT = 8893
+)
+
 type Message struct {
 	kind []byte
 	name string
@@ -60,12 +65,13 @@ var client = Client{
 	name: "",
 	history: []Message{},
 
-	portUDP: 0,
-	portTCP: 0,
+	portUDP: -1,
+	portTCP: -1,
 
 	peers: []Peer{},
 }
 var receivedHistory = false
+var outputNetErrors = true
 
 
 func sendUDPBroadcast(connection net.PacketConn, b []byte){
@@ -156,8 +162,10 @@ func listenBroadcastUDP(connection net.PacketConn){
 		buf := make([]byte, 1024)
 		n, _, err := connection.ReadFrom(buf)
 		if err != nil {
-			fmt.Println(err)
-			break
+			if outputNetErrors {
+				fmt.Println(err)
+			}
+			return
 		}
 		receivedBroadcastMessageUDP(buf[:n])
 	}
@@ -293,7 +301,10 @@ func handleRequest(conn net.Conn) {
 	// Read the incoming connection into the buffer.
 	length, err := conn.Read(buf)
 	if err != nil {
-		fmt.Println("Error reading:", err.Error())
+		if outputNetErrors {
+			fmt.Println("Error: ", err.Error())
+		}
+		return
 	}
 
 	receiveMessageTCP(buf[:length])
@@ -310,7 +321,9 @@ func startTCPServer(l net.Listener){
 		// Listen for an incoming connection.
 		conn, err := l.Accept()
 		if err != nil {
-			fmt.Println("Error accepting: ", err.Error())
+			if outputNetErrors {
+				fmt.Println("Error: ", err.Error())
+			}
 			break
 		}
 		// Handle connections in a new goroutine.
@@ -352,10 +365,49 @@ func main() {
 	if client.ip == nil {
 		fmt.Println("Unable to receive IP address.")
 		fmt.Println("Terminating app.")
+		return
 	}
 
-	client.name = "WinUser _iXasthur" // Name must be <=255 in bytes
-	client.portUDP = 8892
+	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Print("Enter your nickname: ")
+	text, _ := reader.ReadString('\n') // Name must be <=255 in bytes
+	client.name = text[:len(text)-1]
+
+	for client.portUDP == -1 {
+		fmt.Print("Enter UDP port(press Enter to use " + strconv.Itoa(UDP_DEFAULT_PORT) + "): ")
+
+		text, _ = reader.ReadString('\n')
+		if text == "\n" {
+			client.portUDP = UDP_DEFAULT_PORT
+		} else {
+			v, err := strconv.Atoi(text[:len(text)-1])
+			if err == nil && v>=0 {
+				client.portUDP = v
+			} else {
+				fmt.Println("Please, enter valid port.")
+			}
+		}
+	}
+
+	for client.portTCP == -1 {
+		fmt.Print("Enter TCP port(press Enter to use " + strconv.Itoa(TCP_DEFAULT_PORT) + "): ")
+
+		text, _ = reader.ReadString('\n')
+		if text == "\n" {
+			client.portTCP = TCP_DEFAULT_PORT
+		} else {
+			v, err := strconv.Atoi(text[:len(text)-1])
+			if err == nil && v>=0 {
+				client.portTCP = v
+			} else {
+				fmt.Println("Please, enter valid port.")
+			}
+		}
+	}
+
+
+	fmt.Print("Enter TCP port: ")
 	client.portTCP = 8893
 
 	// Listen for incoming connections.
@@ -382,10 +434,10 @@ func main() {
 
 	go listenBroadcastUDP(connectionUDP)
 
-	reader := bufio.NewReader(os.Stdin)
+
 	for {
 
-		text, _ := reader.ReadString('\n') // Text must be <=255 in bytes
+		text, _ = reader.ReadString('\n') // Text must be <=255 in bytes
 
 		switch text {
 		case "/upd\n":
@@ -396,6 +448,7 @@ func main() {
 		case "/exit\n":
 			{
 				fmt.Println("Exiting chat")
+				outputNetErrors = false
 				disconnectTCP()
 				resetChatWindow()
 				return

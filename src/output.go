@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+)
 
 func printHeader(newLineOffset int){
 	for i := 0; i < newLineOffset; i++ {
@@ -9,6 +12,8 @@ func printHeader(newLineOffset int){
 
 	fmt.Println("Client info:")
 	fmt.Println("IP address: " + client.ip.String())
+	fmt.Println("UDP port: " + strconv.Itoa(client.portUDP))
+	fmt.Println("TCP port: " + strconv.Itoa(client.portTCP))
 	fmt.Println("Nickname: " + client.name)
 	fmt.Print("Peers: ")
 	fmt.Println()
