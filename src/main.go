@@ -200,7 +200,7 @@ func shoutOutUDP(connection net.PacketConn, client *Client){
 		kind: packageFirstBytesTemplates.rdyToChatUDP,
 		name: client.name,
 		ip:   client.ip,
-		time: "0:0:0:0",
+		time: getTimeString(),
 		text: "joined chat!\n",
 	}
 	p := createPackage(msg)
@@ -297,7 +297,6 @@ func main() {
 
 	go listenBroadcastUDP(connectionUDP)
 
-
 	reader := bufio.NewReader(os.Stdin)
 	for {
 
@@ -319,7 +318,7 @@ func main() {
 				kind: packageFirstBytesTemplates.messageTCP,
 				name: client.name,
 				ip:   client.ip,
-				time: "0:0:0:0",
+				time: getTimeString(),
 				text: text,
 			}
 			addMessageToHistory(msg)
