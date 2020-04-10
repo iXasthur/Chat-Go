@@ -26,18 +26,26 @@ func getTimeString() string {
 	hStr := strconv.Itoa(h)
 	mStr := strconv.Itoa(m)
 	sStr := strconv.Itoa(s)
+	msStr := strconv.Itoa(time.Now().Nanosecond()/1000000)
 
 	if len(hStr) == 1 {
 		hStr = "0" + hStr
 	}
 
 	if len(mStr) == 1 {
-		mStr = "0" + hStr
+		mStr = "0" + mStr
 	}
 
 	if len(sStr) == 1 {
 		sStr = "0" + sStr
 	}
 
-	return hStr+":"+mStr+":"+sStr
+	if len(msStr) != 3 {
+		var additionalZeros = 3 - len(msStr)
+		for i := 0; i<additionalZeros ; i++ {
+			msStr = "0" + msStr
+		}
+	}
+
+	return hStr+":"+mStr+":"+sStr+":"+msStr
 }

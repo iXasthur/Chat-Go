@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sort"
 	"strconv"
 )
 
@@ -221,6 +222,16 @@ func createPackage(msg Message) []byte{
 	return buff
 }
 
+func sortHistory(){
+	sort.Slice(client.history, func(i, j int) bool {
+		if client.history[i].time < client.history[j].time {
+			return true
+		} else {
+			return false
+		}
+	})
+}
+
 func receiveMessageTCP(b []byte){
 	msg := parsePackage(b)
 	if bytes.Compare(msg.kind, packageFirstBytesTemplates.messageTCP) == 0 {
@@ -259,6 +270,7 @@ func receiveMessageTCP(b []byte){
 	} else
 	if bytes.Compare(msg.kind, packageFirstBytesTemplates.historyMessageTCP) == 0 {
 		addMessageToHistory(msg)
+		sortHistory()
 		resetChatWindow()
 	}
 }
