@@ -12,18 +12,25 @@ import (
 // 1 byte always 213
 // 2 byte always 137
 // 3 byte always (	14 - rdy to chat UDP,
-//					114 - send client TCP, 115 - message TCP, 116 - disconnect TCP	)
+//					114 - send client TCP, 115 - message TCP, 116 - disconnect TCP, 117 - history request TCP,
+//					118 history message TCP	)
 type packageFirstBytesTemplateType struct {
 	rdyToChatUDP []byte
+
 	clientDataTCP []byte
 	messageTCP []byte
 	disconnectTCP []byte
+	historyRequestTCP []byte
+	historyMessageTCP []byte
 }
 var packageFirstBytesTemplates = packageFirstBytesTemplateType{
-	rdyToChatUDP: []byte{213, 137, 14},
-	clientDataTCP: []byte{213, 137, 114},
-	messageTCP: []byte{213, 137, 115},
-	disconnectTCP: []byte{213, 137, 116},
+	rdyToChatUDP: 		[]byte{213, 137, 14},
+
+	clientDataTCP:		[]byte{213, 137, 114},
+	messageTCP: 		[]byte{213, 137, 115},
+	disconnectTCP: 		[]byte{213, 137, 116},
+	historyRequestTCP: 	[]byte{213, 137, 117},
+	historyMessageTCP: 	[]byte{213, 137, 118},
 }
 
 type Message struct {
@@ -57,6 +64,7 @@ var client = Client{
 
 	peers: []Peer{},
 }
+var receivedHistory = false
 
 
 func sendUDPBroadcast(connection net.PacketConn, b []byte){
@@ -222,9 +230,34 @@ func receiveMessageTCP(b []byte){
 	if bytes.Compare(msg.kind, packageFirstBytesTemplates.clientDataTCP) == 0 {
 		addPeer(msg.name, msg.ip)
 		resetChatWindow()
+
+		if !receivedHistory {
+			historyRequestMsg := Message{
+				kind: packageFirstBytesTemplates.historyRequestTCP,
+				name: client.name,
+				ip:   client.ip,
+				time: getTimeString(),
+				text: "requested history!\n",
+			}
+			p := createPackage(historyRequestMsg)
+			sendMessageTCP(p, msg.ip)
+			receivedHistory = true
+		}
 	} else
 	if bytes.Compare(msg.kind, packageFirstBytesTemplates.disconnectTCP) == 0 {
 		removePeer(findPeerByIP(msg.ip))
+		addMessageToHistory(msg)
+		resetChatWindow()
+	} else
+	if bytes.Compare(msg.kind, packageFirstBytesTemplates.historyRequestTCP) == 0 {
+		for _, historyMsg := range client.history {
+			buff := historyMsg
+			buff.kind = packageFirstBytesTemplates.historyMessageTCP
+			p := createPackage(buff)
+			sendMessageTCP(p, msg.ip)
+		}
+	} else
+	if bytes.Compare(msg.kind, packageFirstBytesTemplates.historyMessageTCP) == 0 {
 		addMessageToHistory(msg)
 		resetChatWindow()
 	}
