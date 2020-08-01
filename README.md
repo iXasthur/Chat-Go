@@ -1,2 +1,2 @@
-# Chat-p2p-go
+# Peer to peer chat written in Go
  
