@@ -1,4 +1,4 @@
-// NOT THREAD SAFE :)
+// Nоt thread safe :)
 
 package main
 
