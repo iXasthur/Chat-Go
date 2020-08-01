@@ -1,3 +1,5 @@
+// NOT THREAD SAFE :)
+
 package main
 
 import (
